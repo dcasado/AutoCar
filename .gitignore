@@ -1,3 +1,7 @@
+
+# Created by https://www.gitignore.io/api/python,visualstudiocode
+
+### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -43,7 +47,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
-*.cover
+*,cover
 .hypothesis/
 
 # Translations
@@ -97,5 +101,11 @@ ENV/
 # mkdocs documentation
 /site
 
-# mypy
-.mypy_cache/
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# End of https://www.gitignore.io/api/python,visualstudiocode
