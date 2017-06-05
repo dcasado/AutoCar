@@ -28,11 +28,9 @@ class Main:
         self.state = None
         print("Setup finished")
 
-    def __enter__(self):
-        pass
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.motor.finish()
+    def exit(self):
+        '''Exit main closing all'''
+        self.motor.exit()
         # Clean GPIO
         GPIO.cleanup()
 
@@ -80,6 +78,7 @@ class Main:
             try:
                 print("Choose a command: w/a/s/d/p")
                 command = input("> ")
+                self.motor.calculate_speed(100)
                 if command == "w":
                     self.motor_forward()
                 elif command == "s":
@@ -126,7 +125,10 @@ class Main:
             except KeyboardInterrupt:
                 break
 
+
 if __name__ == "__main__":
-    with Main() as main:
-        main.motor_stop()
-        main.choose_mode()
+    MAIN = Main()
+    try:
+        MAIN.choose_mode()
+    finally:
+        MAIN.exit()

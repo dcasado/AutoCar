@@ -7,16 +7,9 @@ class MotorController:
     # ENA, ENB
     EN_A, EN_B = 18, 12
 
-    # Derecha
-    # IN1
-    CONTROLLER_1 = 4
-    # IN2
-    CONTROLLER_2 = 17
-    # Izquierda
-    # IN3
-    CONTROLLER_3 = 27
-    # IN4
-    CONTROLLER_4 = 22
+    #        Derecha                    Izquierda
+    #   IN1           IN2           IN3           IN4
+    CONTROLLER_1, CONTROLLER_2, CONTROLLER_3, CONTROLLER_4 = 4, 17, 27, 22
 
     # Frequency
     FREQUENCY = 50
@@ -34,8 +27,8 @@ class MotorController:
         GPIO.setup(self.CONTROLLER_4, GPIO.OUT)
         self.en_a = GPIO.PWM(self.EN_A, MotorController.FREQUENCY)
         self.en_b = GPIO.PWM(self.EN_B, MotorController.FREQUENCY)
-        self.en_a.start(MotorController.DUTY_CYCLE)
-        self.en_b.start(MotorController.DUTY_CYCLE)
+        self.en_a.start(0)
+        self.en_b.start(0)
 
     def forward(self, sleep_time):
         '''Motors forward'''
@@ -77,8 +70,8 @@ class MotorController:
         GPIO.output(MotorController.CONTROLLER_4, False)
         time.sleep(sleep_time)
 
-    def finish(self):
-        '''Finish motor'''
+    def exit(self):
+        '''Exit motor'''
         self.en_a.stop()
         self.en_b.stop()
 
