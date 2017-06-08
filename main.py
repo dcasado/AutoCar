@@ -14,8 +14,8 @@ class States(Enum):
     REVERSE = 4
 
 
-class Main:
-    '''Main class'''
+class MainController:
+    '''MainController class'''
     CONTROLLER_SLEEP_TIME = 0.060
     STOP_DISTANCE = 20  # Distance from object to stop
 
@@ -23,8 +23,8 @@ class Main:
 
     def __init__(self):
         # Setup the needed components
-        self.motor = Motor(Main.GPIO_MODE)
-        self.sensor = UltrasonicSensor(Main.GPIO_MODE)
+        self.motor = Motor(MainController.GPIO_MODE)
+        self.sensor = UltrasonicSensor(MainController.GPIO_MODE)
         self.state = None
         print("Setup finished")
 
@@ -37,31 +37,31 @@ class Main:
     def motor_forward(self):
         '''Makes the car go forward'''
         print("Motor forward")
-        self.motor.forward(Main.CONTROLLER_SLEEP_TIME)
+        self.motor.forward(MainController.CONTROLLER_SLEEP_TIME)
         self.state = States.FORWARD
 
     def motor_stop(self):
         '''Makes the car stop'''
         print("Motor stop")
-        self.motor.stop(Main.CONTROLLER_SLEEP_TIME)
+        self.motor.stop(MainController.CONTROLLER_SLEEP_TIME)
         self.state = States.STOP
 
     def motor_reverse(self):
         '''Makes the car go reverse'''
         print("Motor reverse")
-        self.motor.reverse(Main.CONTROLLER_SLEEP_TIME)
+        self.motor.reverse(MainController.CONTROLLER_SLEEP_TIME)
         self.state = States.REVERSE
 
     def motor_turn_left(self):
         '''Makes the car turn left'''
         print("Motor turn left")
-        self.motor.turn_left(Main.CONTROLLER_SLEEP_TIME)
+        self.motor.turn_left(MainController.CONTROLLER_SLEEP_TIME)
         self.state = States.TURN_LEFT
 
     def motor_turn_right(self):
         '''Makes the car turn right'''
         print("Motor turn right")
-        self.motor.turn_right(Main.CONTROLLER_SLEEP_TIME)
+        self.motor.turn_right(MainController.CONTROLLER_SLEEP_TIME)
         self.state = States.TURN_RIGHT
 
     def choose_mode(self):
@@ -103,7 +103,7 @@ class Main:
                 distance = self.sensor.get_distance3()
                 print("Distance: {} cm, State: {}".format(distance, self.state))
                 self.motor.calculate_speed(distance)
-                if distance <= Main.STOP_DISTANCE:
+                if distance <= MainController.STOP_DISTANCE:
                     if self.state is States.FORWARD:
                         self.motor_reverse()
                         time.sleep(0.1)
@@ -126,9 +126,12 @@ class Main:
                 break
 
 
-if __name__ == "__main__":
-    MAIN = Main()
+def main():
     try:
-        MAIN.choose_mode()
+        main_controller = MainController()
+        main_controller.choose_mode()
     finally:
-        MAIN.exit()
+        main_controller.exit()
+
+if __name__ == "__main__":
+    main()
