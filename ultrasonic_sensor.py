@@ -28,8 +28,6 @@ class UltrasonicSensor:
         reading = 0
         last_reading = self.readings[self.read_index]
 
-        # print "Total pre: ", TOTAL
-
         # subtract the last reading:
         self.total -= self.readings[self.read_index]
 
