@@ -39,7 +39,8 @@ class UltrasonicSensor:
         # Ensure the 'Trig' pin is low for at least 50mS (recommended re-sample
         # time)
         GPIO.output(UltrasonicSensor.TRIG, False)
-        time.sleep(0.05)
+        # Default value 0.05
+        time.sleep(0.04)
         # Turn on the 'Trig' pin for 10uS (ish!)
         GPIO.output(UltrasonicSensor.TRIG, True)
         time.sleep(10 * 10**-6)
@@ -54,9 +55,9 @@ class UltrasonicSensor:
             time1 = time.time()
             # If the 'Echo' pin doesn't go high after 20mS
             if time1 - time2 > 0.02:
-                # then set reading_error to True
+                # then set reading_error to True and break out of the loop
+                # print("Reading error")
                 reading_error = True
-                # and break out of the loop
                 break
 
         # Otherwise, wait for the 'Echo' pin to go low
@@ -65,9 +66,9 @@ class UltrasonicSensor:
             time2 = time.time()
             # If the 'Echo' pin doesn't go low after 20mS
             if time2 - time1 > 0.02:
-                # then set reading_error to True
+                # then set reading_error to True and break out of the loop
+                # print("Reading error")
                 reading_error = True
-                # and break out of the loop
                 break
 
         # print "Last reading: ", last_reading

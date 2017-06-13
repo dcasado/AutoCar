@@ -12,13 +12,13 @@ class Camera:
         '''Camera constructor'''
         self.camera_width = width
         self.camera_height = height
-        self.vs = VideoStream(src=src, usePiCamera=True,
-                              resolution=(width, height)).start()
+        self.video_stream = VideoStream(src=src, usePiCamera=True,
+                                        resolution=(width, height)).start()
         time.sleep(1.0)
 
     def close(self):
         '''Close all the resources'''
-        self.vs.stop()
+        self.video_stream.stop()
         cv2.destroyAllWindows()
 
     def roi(self, image, roi_vertices):
@@ -31,26 +31,15 @@ class Camera:
         masked = cv2.bitwise_and(image, mask)
         return masked
 
-    def draw_lines(self, processed_frame, lines):
-        '''Draw the lines detected in the image'''
-        if not lines is None:
-            for line in lines:
-                x_1, y_1, x_2, y_2 = line[0]
-                slope = math.atan((y_2 - y_1) / (x_2 - x_1))
-                # Slope between ~23 and ~80 degrees
-                if 1.4 > abs(slope) > 0.4:
-                    #print("Slope: {}".format(slope))
-                    cv2.line(processed_frame, (x_1, y_1),
-                             (x_2, y_2), (255, 255, 255), 2)
-
-    def merge_lines(self, processed_frame, lines):
+    def merge_lines(self, processed_frame, lines, draw_lines):
         '''Filter and merge lines to get the best group of lines'''
         if lines is not None:
             positive_lines = []
             negative_lines = []
+            atan = math.atan
             for line in lines:
                 x_1, y_1, x_2, y_2 = line[0]
-                slope = math.atan((y_2 - y_1) / (x_2 - x_1))
+                slope = atan((y_2 - y_1) / (x_2 - x_1))
                 # Slope between ~23 and ~80 degrees
                 if 1.4 > abs(slope) > 0.4:
                     line_dict = {"slope": slope, "points": line[0]}
@@ -66,36 +55,79 @@ class Camera:
                 positive_lines, key=lambda line: line["slope"])
             negative_lines = sorted(
                 negative_lines, key=lambda line: line["slope"])
-            #positive_group_lines = self.organize_lines(positive_lines)
-            #negative_group_lines = self.organize_lines(negative_lines)
-            #best_positive_group = self.choose_best_group(positive_group_lines)
-            #best_negative_group = self.choose_best_group(negative_group_lines)
+            # positive_group_lines = self.organize_lines(positive_lines)
+            # negative_group_lines = self.organize_lines(negative_lines)
+            # best_positive_group = self.choose_best_group(positive_group_lines)
+            # best_negative_group =
+            # self.choose_best_group(negative_group_lines)
 
             best_positive_group = self.organize_and_best_group(positive_lines)
             best_negative_group = self.organize_and_best_group(negative_lines)
 
-            #print("All groups", group_lines)
-            #print("Best positive group", best_positive_group)
-            #print("Best positive group2", best_positive_group2)
+            # print("All groups", group_lines)
+            # print("Best positive group", best_positive_group)
+            # print("Best positive group2", best_positive_group2)
 
-            #print("Best positive group", best_positive_group)
-            #print("Best negative group", best_negative_group)
+            # print("Best positive group", best_positive_group)
+            # print("Best negative group", best_negative_group)
 
-            positive_point = self.best_points(best_positive_group)
-            negative_point = self.best_points(best_negative_group)
+            positive_point = self.best_points2(best_positive_group)
+            negative_point = self.best_points2(best_negative_group)
 
             # print("Positive points", positive_points)
             # print("Negative points", negative_points)
 
-            if positive_point["points"][0] < self.camera_width and positive_point["points"][1] < self.camera_height:
-                cv2.line(
-                    processed_frame, (positive_point["points"][0], positive_point["points"][1]), (positive_point["points"][2], positive_point["points"][3]), (255, 255, 255), 4)
-            if negative_point["points"][0] > 0 and negative_point["points"][1] > 0:
-                cv2.line(
-                    processed_frame, (negative_point["points"][0], negative_point["points"][1]), (negative_point["points"][2], negative_point["points"][3]), (255, 255, 255), 4)
+            # Draw the lines in the frame
+            if draw_lines:
+                try:
+                    cv2.line(
+                        processed_frame, (positive_point["points"]
+                                          [0], positive_point["points"][1]),
+                        (positive_point["points"][2],
+                         positive_point["points"][3]), (255, 255, 255), 4)
+                    cv2.line(
+                        processed_frame, (negative_point["points"]
+                                          [0], negative_point["points"][1]),
+                        (negative_point["points"][2],
+                         negative_point["points"][3]), (255, 255, 255), 4)
+                except TypeError:
+                    pass
 
             return positive_point, negative_point
         return {"slope": -1, "points": [-1, -1, -1, -1]}, {"slope": -1, "points": [-1, -1, -1, -1]}
+
+    def best_points2(self, group):
+        '''Get the best points to use'''
+        best_x1, best_y1, best_x2, best_y2 = None, None, None, None
+        try:
+            if group[0]["slope"] > 0:
+                for line in group:
+                    temp_x1, temp_y1, temp_x2, temp_y2 = line["points"]
+                    # print("Temp points", temp_x1, temp_y1, temp_x2, temp_y2)
+                    if best_y1 is None or temp_y1 > best_y1:
+                        best_x1 = temp_x1
+                        best_y1 = temp_y1
+                    if best_y2 is None or temp_y2 < best_y2:
+                        best_x2 = temp_x2
+                        best_y2 = temp_y2
+            else:
+                for line in group:
+                    temp_x1, temp_y1, temp_x2, temp_y2 = line["points"]
+                    # print("Temp points", temp_x1, temp_y1, temp_x2, temp_y2)
+                    if best_y1 is None or temp_y1 < best_y1:
+                        best_x1 = temp_x1
+                        best_y1 = temp_y1
+                    if best_y2 is None or temp_y2 > best_y2:
+                        best_x2 = temp_x2
+                        best_y2 = temp_y2
+        except IndexError:
+            return {"slope": -1,
+                    "points": [best_x1, best_y1, best_x2, best_y2]}
+        else:
+            # print(best_x1, best_y1, best_x2, best_y2)
+            slope = math.atan((best_y2 - best_y1) / (best_x2 - best_x1))
+            return {"slope": slope,
+                    "points": [best_x1, best_y1, best_x2, best_y2]}
 
     def best_points(self, group):
         '''Get the best points to use'''
@@ -151,58 +183,26 @@ class Camera:
             else:
                 mean_slope = float(sum(
                     d["slope"] for d in temp_group)) / len(temp_group)
-                #print("Mean", mean_slope)
+                # print("Mean", mean_slope)
                 if mean_slope * 0.95 < line["slope"] < mean_slope * 1.05:
                     temp_group.append(line)
                     best_group = compare_group(best_group, temp_group)
-                    # if len(temp_group) > len(best_group):
-                    #     best_group = temp_group
                 else:
                     best_group = compare_group(best_group, temp_group)
-                    # if len(temp_group) > len(best_group):
-                    #     best_group = temp_group
                     temp_group = []
                     temp_group.append(line)
         return best_group
 
-    def organize_lines(self, lines):
-        '''Organize lines by slope'''
-        actual_group = 0
-        group_lines = []
-        #print("Positive lines", positive_lines)
-        for line in lines:
-            if len(group_lines) <= 0:
-                group_lines.append([line])
-            else:
-                #mean_slope = 0.7
-                mean_slope = float(sum(
-                    d["slope"] for d in group_lines[actual_group])) / len(group_lines[actual_group])
-                #print("Mean", mean_slope)
-                if mean_slope * 0.95 < line["slope"] < mean_slope * 1.05:
-                    group_lines[actual_group].append(line)
-                else:
-                    group_lines.append([line])
-                    actual_group += 1
-        return group_lines
-
-    def choose_best_group(self, group_lines):
-        '''Choose the best group of lines'''
-        best_group = []
-        for group in group_lines:
-            if len(group) > len(best_group):
-                best_group = group
-        return best_group
-
-    def process_frame(self, frame):
+    def process_frame(self, frame, draw_lines):
         '''Process the frame to get the road lanes'''
         processed_frame = frame
 
         # NOT NECESARY BECAUSE CANNY DOES IT FOR US Change image color to gray
-        #processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Calculate edges
         processed_frame = cv2.Canny(processed_frame, 100, 200, apertureSize=3)
-        #processed_frame = auto_canny(processed_frame)
+        # processed_frame = auto_canny(processed_frame)
 
         # Blur image to smooth it
         processed_frame = cv2.GaussianBlur(processed_frame, (5, 5), 0)
@@ -211,20 +211,21 @@ class Camera:
         # rho only detects vertical lines with np.pi/180*170
         lines = cv2.HoughLinesP(processed_frame, 1, np.pi /
                                 180, 110, minLineLength=20, maxLineGap=10)
-        positive_line, negative_line = self.merge_lines(processed_frame, lines)
-        #self.draw_lines(processed_frame, lines)
+        positive_line, negative_line = self.merge_lines(
+            processed_frame, lines, draw_lines)
+        # self.draw_lines(processed_frame, lines)
         return processed_frame, positive_line, negative_line
 
     def get_processed_frame(self, roi_vertices, display_image):
         '''Get the processed frame'''
-        frame = self.vs.read()
+        frame = self.video_stream.read()
 
         # Rotate frame 180 degrees
         frame = np.rot90(frame, 2)
 
         roi_frame = self.roi(frame, roi_vertices)
         final_frame, final_positive_line, final_negative_line = self.process_frame(
-            roi_frame)
+            roi_frame, display_image)
 
         if display_image:
             self.display_image(final_frame, "Final")
@@ -244,16 +245,17 @@ if __name__ == "__main__":
     fps = FPS().start()
     while fps._numFrames < 200:
         # while True:
-        positive_line, negative_line = camera.get_processed_frame(VERTICES, True)
+        POSITIVE_LINE, NEGATIVE_LINE = camera.get_processed_frame(
+            VERTICES, True)
 
         # print("Positive line:", positive_line)
         # print("Negative line:", negative_line)
 
-        if positive_line["slope"] != -1 and negative_line["slope"] != -1:
+        if POSITIVE_LINE["slope"] != -1 and NEGATIVE_LINE["slope"] != -1:
             print("Go straight")
-        elif positive_line["slope"] == -1 and negative_line["slope"] != -1:
+        elif POSITIVE_LINE["slope"] == -1 and NEGATIVE_LINE["slope"] != -1:
             print("Turn right")
-        elif positive_line["slope"] != -1 and negative_line["slope"] == -1:
+        elif POSITIVE_LINE["slope"] != -1 and NEGATIVE_LINE["slope"] == -1:
             print("Turn left")
         else:
             print("Go anywhere")

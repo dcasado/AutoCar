@@ -44,7 +44,7 @@ class MotorController:
     def forward_left(self, sleep_time):
         '''Motors forward left'''
         self.en_a.ChangeDutyCycle(80)
-        self.en_b.ChangeDutyCycle(20)
+        self.en_b.ChangeDutyCycle(10)
         GPIO.output(MotorController.CONTROLLER_1, False)
         GPIO.output(MotorController.CONTROLLER_2, True)
         GPIO.output(MotorController.CONTROLLER_3, False)
@@ -52,7 +52,7 @@ class MotorController:
 
     def forward_right(self, sleep_time):
         '''Motors forward right'''
-        self.en_a.ChangeDutyCycle(20)
+        self.en_a.ChangeDutyCycle(10)
         self.en_b.ChangeDutyCycle(80)
         GPIO.output(MotorController.CONTROLLER_1, False)
         GPIO.output(MotorController.CONTROLLER_2, True)

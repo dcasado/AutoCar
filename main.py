@@ -15,6 +15,8 @@ class States(Enum):
     TURN_LEFT = 2
     TURN_RIGHT = 3
     REVERSE = 4
+    FORWARD_LEFT = 5
+    FORWARD_RIGHT = 6
 
 
 class MainController:
@@ -26,14 +28,15 @@ class MainController:
     GPIO_MODE = GPIO.BCM
 
     VERTICES = np.array([[0, 240], [0, 140], [100, 100],
-                             [220, 100], [320, 140], [320, 240]])
+                         [220, 100], [320, 140], [320, 240]])
 
     def __init__(self):
         # Setup the needed components
+        self.state = None
         self.motor = Motor(MainController.GPIO_MODE)
+        self.motor_stop(0)
         self.sensor = UltrasonicSensor(MainController.GPIO_MODE)
         self.camera = Camera()
-        self.state = None
         print("Setup finished")
 
     def exit(self):
@@ -45,49 +48,55 @@ class MainController:
 
     def motor_forward(self, sleep_time):
         '''Makes the car go forward'''
-        print("Motor forward")
-        self.motor.forward(sleep_time)
-        self.state = States.FORWARD
+        if self.state is not States.FORWARD:
+            print("Motor forward")
+            self.motor.forward(sleep_time)
+            self.state = States.FORWARD
 
     def motor_forward_left(self, sleep_time):
         '''Makes the car go forward and left'''
-        print("Motor forward left")
-        self.motor.forward_left(sleep_time)
-        self.state = States.FORWARD
+        if self.state is not States.FORWARD_LEFT:
+            print("Motor forward left")
+            self.motor.forward_left(sleep_time)
+            self.state = States.FORWARD_LEFT
 
     def motor_forward_right(self, sleep_time):
         '''Makes the car go forward and right'''
-        print("Motor forward left")
-        self.motor.forward_right(sleep_time)
-        self.state = States.FORWARD
+        if self.state is not States.FORWARD_RIGHT:
+            print("Motor forward left")
+            self.motor.forward_right(sleep_time)
+            self.state = States.FORWARD_RIGHT
 
     def motor_stop(self, sleep_time):
         '''Makes the car stop'''
-        print("Motor stop")
-        self.motor.stop(sleep_time)
-        self.state = States.STOP
+        if self.state is not States.STOP:
+            print("Motor stop")
+            self.motor.stop(sleep_time)
+            self.state = States.STOP
 
     def motor_reverse(self, sleep_time):
         '''Makes the car go reverse'''
-        print("Motor reverse")
-        self.motor.reverse(sleep_time)
-        self.state = States.REVERSE
+        if self.state is not States.REVERSE:
+            print("Motor reverse")
+            self.motor.reverse(sleep_time)
+            self.state = States.REVERSE
 
     def motor_turn_left(self, sleep_time):
         '''Makes the car turn left'''
-        print("Motor turn left")
-        self.motor.turn_left(sleep_time)
-        self.state = States.TURN_LEFT
+        if self.state is not States.TURN_LEFT:
+            print("Motor turn left")
+            self.motor.turn_left(sleep_time)
+            self.state = States.TURN_LEFT
 
     def motor_turn_right(self, sleep_time):
         '''Makes the car turn right'''
-        print("Motor turn right")
-        self.motor.turn_right(sleep_time)
-        self.state = States.TURN_RIGHT
+        if self.state is not States.TURN_RIGHT:
+            print("Motor turn right")
+            self.motor.turn_right(sleep_time)
+            self.state = States.TURN_RIGHT
 
     def choose_mode(self):
         '''Choose drive mode'''
-        self.motor_stop(0)
         print("Choose operation mode: manual(m)/auto(a): ")
         if input("> ") == "m":
             self.manual_mode()
@@ -121,36 +130,38 @@ class MainController:
         # Go forward until find an obstacle
         # self.motor_forward()
         start_time = time.time()
+        display_image = False
         while True:
             try:
                 distance = self.sensor.get_distance3()
-                print("Distance:", distance, "cm, State:", self.state)
+                # print("Distance:", distance, "cm, State:", self.state)
                 # self.motor.calculate_speed(distance)
                 if distance <= MainController.STOP_DISTANCE:
                     if self.state is States.FORWARD:
-                        self.motor_reverse(MainController.CONTROLLER_SLEEP_TIME * 4)
+                        self.motor_reverse(
+                            MainController.CONTROLLER_SLEEP_TIME * 3)
                     self.motor_stop(0)
                 else:
-                    positive_line, negative_line = self.camera.get_processed_frame(MainController.VERTICES, True)
-                    if positive_line["slope"] != -1 and negative_line["slope"] != -1:
-                        print("Go straight")
+                    positive_line, negative_line = self.camera.get_processed_frame(
+                        MainController.VERTICES, display_image)
+                    positive_slope = positive_line["slope"]
+                    negative_slope = negative_line["slope"]
+                    if positive_slope != -1 and negative_slope != -1:
                         self.motor_forward(0)
-                    elif positive_line["slope"] == -1 and negative_line["slope"] != -1:
-                        print("Turn right")
-                        self.motor_forward_left(MainController.CONTROLLER_SLEEP_TIME)
-                        # self.motor_turn_right()
-                    elif positive_line["slope"] != -1 and negative_line["slope"] == -1:
-                        print("Turn left")
-                        self.motor_forward_right(MainController.CONTROLLER_SLEEP_TIME)
-                        # self.motor_turn_left()
+                    elif positive_slope == -1 and negative_slope != -1:
+                        self.motor_forward_left(
+                            MainController.CONTROLLER_SLEEP_TIME)
+                    elif positive_slope != -1 and negative_slope == -1:
+                        self.motor_forward_right(
+                            MainController.CONTROLLER_SLEEP_TIME)
                     else:
-                        print("Go anywhere")
+                        # No lines found
                         self.motor_forward(0)
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
+                    if display_image:
+                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                            break
                 print("Frame took ", time.time() - start_time)
                 start_time = time.time()
-
             except KeyboardInterrupt:
                 break
 
@@ -162,6 +173,7 @@ def main():
         main_controller.choose_mode()
     finally:
         main_controller.exit()
+
 
 if __name__ == "__main__":
     main()
