@@ -22,21 +22,24 @@ class States(Enum):
 class MainController:
     '''MainController class'''
     # Anterior sleep time 0.06
-    CONTROLLER_SLEEP_TIME = 0.06
+    CONTROLLER_SLEEP_TIME = 0.0
     STOP_DISTANCE = 25  # Distance from object to stop
 
     GPIO_MODE = GPIO.BCM
 
-    VERTICES = np.array([[0, 240], [0, 140], [100, 100],
-                         [220, 100], [320, 140], [320, 240]])
+    CAMERA_WIDTH = 320
+    CAMERA_HEIGHT = 240
+
+    DISPLAY_IMAGE = True
 
     def __init__(self):
         # Setup the needed components
         self.state = None
         self.motor = Motor(MainController.GPIO_MODE)
         self.motor_stop(0)
-        self.sensor = UltrasonicSensor(MainController.GPIO_MODE)
-        self.camera = Camera()
+        self.sensor = UltrasonicSensor(MainController.GPIO_MODE).start()
+        self.camera = Camera(width=MainController.CAMERA_WIDTH, height=MainController.CAMERA_HEIGHT,
+            display_images=MainController.DISPLAY_IMAGE)
         print("Setup finished")
 
     def exit(self):
@@ -97,16 +100,26 @@ class MainController:
 
     def choose_mode(self):
         '''Choose drive mode'''
-        print("Choose operation mode: manual(m)/auto(a): ")
-        if input("> ") == "m":
-            self.manual_mode()
-        else:
-            self.auto_mode()
+        print("Choose operation mode: manual(m)/auto(a) or exit: ")
+        good_option = False
+        while not good_option:
+            command = input("> ")
+            if command == "m":
+                good_option = True
+                self.manual_mode()
+            elif command == "a":
+                good_option = True
+                self.auto_mode()
+            elif command == "exit":
+                break
+            else:
+                pass
+
 
     def manual_mode(self):
         '''Manual mode'''
-        while True:
-            try:
+        try:
+            while True:
                 print("Choose a command: w/a/s/d/p")
                 command = input("> ")
                 # self.motor.calculate_speed(100)
@@ -120,51 +133,66 @@ class MainController:
                     self.motor_turn_right(0)
                 elif command == "p":
                     self.motor_stop(0)
+                elif command == "exit":
+                    self.motor_stop(0)
+                    self.choose_mode()
+                    break
                 else:
                     pass
-            except KeyboardInterrupt:
-                break
+        except KeyboardInterrupt:
+            pass
 
     def auto_mode(self):
         '''Auto mode'''
         # Go forward until find an obstacle
         # self.motor_forward()
         start_time = time.time()
-        display_image = False
-        while True:
-            try:
-                distance = self.sensor.get_distance3()
-                # print("Distance:", distance, "cm, State:", self.state)
+        try:
+            while True:
+                distance = self.sensor.read_distance()
                 # self.motor.calculate_speed(distance)
+                # print("Distance:", distance, "cm, State:", self.state)
                 if distance <= MainController.STOP_DISTANCE:
                     if self.state is States.FORWARD:
                         self.motor_reverse(
-                            MainController.CONTROLLER_SLEEP_TIME * 3)
+                            MainController.CONTROLLER_SLEEP_TIME * 2)
                     self.motor_stop(0)
                 else:
-                    positive_line, negative_line = self.camera.get_processed_frame(
-                        MainController.VERTICES, display_image)
+                    positive_line, negative_line = self.camera.get_processed_frame()
                     positive_slope = positive_line["slope"]
                     negative_slope = negative_line["slope"]
-                    if positive_slope != -1 and negative_slope != -1:
-                        self.motor_forward(0)
-                    elif positive_slope == -1 and negative_slope != -1:
+                    # Two lines found
+                    if positive_slope is not None and negative_slope is not None:
+                        #self.motor_forward(0)
+                        self.maintain_middle(positive_line, negative_line)
+                    # Right line found
+                    elif positive_slope is None and negative_slope is not None:
                         self.motor_forward_left(
                             MainController.CONTROLLER_SLEEP_TIME)
-                    elif positive_slope != -1 and negative_slope == -1:
+                    # Left line found
+                    elif positive_slope is not None and negative_slope is None:
                         self.motor_forward_right(
                             MainController.CONTROLLER_SLEEP_TIME)
+                    # No lines found
                     else:
-                        # No lines found
                         self.motor_forward(0)
-                    if display_image:
+                    if self.DISPLAY_IMAGE:
                         if cv2.waitKey(1) & 0xFF == ord('q'):
                             break
                 print("Frame took ", time.time() - start_time)
                 start_time = time.time()
-            except KeyboardInterrupt:
-                break
+        except KeyboardInterrupt:
+            self.motor_stop(0)
+            self.choose_mode()
 
+
+    def maintain_middle(self, positive_line, negative_line):
+        '''Maintain the car in the middle of the road'''
+        # print(("Middle screen ", self.camera.camera_width/2), " middle point between lines ", ((positive_line["points"][0] + negative_line["points"][2])/2))
+        if (self.camera.camera_width/2) < ((positive_line["points"][0] + negative_line["points"][2])/2):
+            self.motor_forward_left(MainController.CONTROLLER_SLEEP_TIME)
+        else:
+            self.motor_forward_right(MainController.CONTROLLER_SLEEP_TIME)
 
 def main():
     '''Main function'''
