@@ -3,7 +3,9 @@ from enum import Enum
 from ultrasonic_sensor import UltrasonicSensor
 from motor_controller import MotorController as Motor
 from camera import Camera
-import numpy as np
+from line_finder import LineFinder
+from signal_finder import SignalFinder
+from utils import display_image, draw_line
 import cv2
 import RPi.GPIO as GPIO
 
@@ -38,8 +40,9 @@ class MainController:
         self.motor = Motor(MainController.GPIO_MODE)
         self.motor_stop(0)
         self.sensor = UltrasonicSensor(MainController.GPIO_MODE).start()
-        self.camera = Camera(width=MainController.CAMERA_WIDTH, height=MainController.CAMERA_HEIGHT,
-            display_images=MainController.DISPLAY_IMAGE)
+        self.camera = Camera(width=MainController.CAMERA_WIDTH, height=MainController.CAMERA_HEIGHT)
+        self.line_finder = LineFinder()
+        self.signal_finder = SignalFinder()
         print("Setup finished")
 
     def exit(self):
@@ -151,14 +154,21 @@ class MainController:
             while True:
                 distance = self.sensor.read_distance()
                 # self.motor.calculate_speed(distance)
-                # print("Distance:", distance, "cm, State:", self.state)
+                print("Distance:", distance, "cm, State:", self.state)
                 if distance <= MainController.STOP_DISTANCE:
                     if self.state is States.FORWARD:
                         self.motor_reverse(
                             MainController.CONTROLLER_SLEEP_TIME * 2)
                     self.motor_stop(0)
                 else:
-                    positive_line, negative_line = self.camera.get_processed_frame()
+                    frame = self.camera.get_frame()
+                    self.signal_finder.get_signals(frame)
+                    positive_line, negative_line = self.line_finder.get_lines(frame)
+
+                    draw_line(frame, positive_line)
+                    draw_line(frame, negative_line)
+                    display_image(frame)
+
                     positive_slope = positive_line["slope"]
                     negative_slope = negative_line["slope"]
                     # Two lines found
@@ -175,7 +185,8 @@ class MainController:
                             MainController.CONTROLLER_SLEEP_TIME)
                     # No lines found
                     else:
-                        self.motor_forward(0)
+                        self.motor_stop(0)
+
                     if self.DISPLAY_IMAGE:
                         if cv2.waitKey(1) & 0xFF == ord('q'):
                             break
@@ -189,7 +200,7 @@ class MainController:
     def maintain_middle(self, positive_line, negative_line):
         '''Maintain the car in the middle of the road'''
         # print(("Middle screen ", self.camera.camera_width/2), " middle point between lines ", ((positive_line["points"][0] + negative_line["points"][2])/2))
-        if (self.camera.camera_width/2) < ((positive_line["points"][0] + negative_line["points"][2])/2):
+        if (MainController.CAMERA_WIDTH/2) < ((positive_line["points"][0] + negative_line["points"][2])/2):
             self.motor_forward_left(MainController.CONTROLLER_SLEEP_TIME)
         else:
             self.motor_forward_right(MainController.CONTROLLER_SLEEP_TIME)

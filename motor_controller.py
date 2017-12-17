@@ -54,6 +54,7 @@ class MotorController:
         GPIO.output(MotorController.CONTROLLER_2, True)
         GPIO.output(MotorController.CONTROLLER_3, False)
         GPIO.output(MotorController.CONTROLLER_4, True)
+        time.sleep(sleep_time)
 
     def forward_right(self, sleep_time):
         '''Motors forward right'''
@@ -63,6 +64,7 @@ class MotorController:
         GPIO.output(MotorController.CONTROLLER_2, True)
         GPIO.output(MotorController.CONTROLLER_3, False)
         GPIO.output(MotorController.CONTROLLER_4, True)
+        time.sleep(sleep_time)
 
     def reverse(self, sleep_time):
         '''Motors in reverse'''
