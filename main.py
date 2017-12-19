@@ -6,6 +6,7 @@ from camera import Camera
 from line_finder import LineFinder
 from signal_finder import SignalFinder
 from utils import display_image, draw_line
+from multiprocessing.pool import ThreadPool
 import cv2
 import RPi.GPIO as GPIO
 
@@ -40,15 +41,20 @@ class MainController:
         self.motor = Motor(MainController.GPIO_MODE)
         self.motor_stop(0)
         self.sensor = UltrasonicSensor(MainController.GPIO_MODE).start()
-        self.camera = Camera(width=MainController.CAMERA_WIDTH, height=MainController.CAMERA_HEIGHT)
+        self.camera = Camera(width=MainController.CAMERA_WIDTH,
+                             height=MainController.CAMERA_HEIGHT,
+                             vflip=True).start()
         self.line_finder = LineFinder()
         self.signal_finder = SignalFinder()
+        self.pool = ThreadPool(processes=2)
         print("Setup finished")
 
     def exit(self):
         '''Exit main closing all'''
         self.motor.exit()
-        self.camera.close()
+        self.camera.stop()
+        self.sensor.stop()
+        cv2.destroyAllWindows()
         # Clean GPIO
         GPIO.cleanup()
 
@@ -154,20 +160,31 @@ class MainController:
             while True:
                 distance = self.sensor.read_distance()
                 # self.motor.calculate_speed(distance)
-                print("Distance:", distance, "cm, State:", self.state)
+                # print("Distance:", distance, "cm, State:", self.state)
                 if distance <= MainController.STOP_DISTANCE:
                     if self.state is States.FORWARD:
                         self.motor_reverse(
                             MainController.CONTROLLER_SLEEP_TIME * 2)
                     self.motor_stop(0)
                 else:
-                    frame = self.camera.get_frame()
-                    self.signal_finder.get_signals(frame)
-                    positive_line, negative_line = self.line_finder.get_lines(frame)
+                    frame = self.camera.read()
+
+                    get_signals_async = self.pool.apply_async(self.signal_finder.get_signals,
+                                                              args=(frame,))
+                    get_lines_async = self.pool.apply_async(self.line_finder.get_lines,
+                                                            args=(frame,))
+
+                    signals = get_signals_async.get(0.3)
+                    positive_line, negative_line = get_lines_async.get(0.3)
+
+                    # self.signal_finder.get_signals(frame)
+                    # positive_line, negative_line = self.line_finder.get_lines(frame)
 
                     draw_line(frame, positive_line)
                     draw_line(frame, negative_line)
                     display_image(frame)
+
+                    print(signals)
 
                     positive_slope = positive_line["slope"]
                     negative_slope = negative_line["slope"]
@@ -215,4 +232,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    camera = Camera(width=320, height=240, vflip=True)
+    camera.start()
+    time.sleep(0.5)
+    while True:
+        frame = camera.read()
+        SignalFinder().get_signals(frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    # main()

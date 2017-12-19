@@ -1,49 +1,54 @@
-import time
-import cv2
-import numpy as np
-from imutils.video import VideoStream, FPS
+# Modified from https://github.com/jrosebr1/imutils/blob/master/imutils/video/pivideostream.py with MIT License
 
+from threading import Thread
+from picamera import PiCamera
+from picamera.array import PiRGBArray
 
 class Camera:
     '''Camera class'''
 
-    def __init__(self, src=0, width=320, height=240):
+    def __init__(self, width=320, height=240, framerate=32, hflip=False, vflip=False):
         '''Camera constructor'''
-        self.video_stream = VideoStream(src=src, usePiCamera=True,
-                                        resolution=(width, height)).start()
-        time.sleep(0.5)
+        self.camera = PiCamera()
+        self.camera.resolution = (width, height)
+        self.camera.framerate = framerate
+        self.raw_capture = PiRGBArray(self.camera, size=(width, height))
+        self.stream = self.camera.capture_continuous(self.raw_capture,
+                                                     format="bgr", use_video_port=True)
+        self.camera.hflip = hflip
+        self.camera.vflip = vflip
+        # initialize the frame and the variable used to indicate
+		# if the thread should be stopped
+        self.frame = None
+        self.stopped = False
 
-    def close(self):
-        '''Close all the resources'''
-        self.video_stream.stop()
-        cv2.destroyAllWindows()
+    def start(self):
+        '''start the thread to read frames from the video stream'''
+        t = Thread(target=self.update, args=())
+        t.daemon = True
+        t.start()
+        return self
 
-    def get_frame(self):
-        '''Get the processed frame'''
-        frame = self.video_stream.read()
-        # frame = cv2.imread("muo-linux-raspbian-pixel-desktop.png", cv2.IMREAD_COLOR)
-        # Rotate frame 180 degrees
-        frame = np.rot90(frame, 2).copy()
-        return frame
+    def update(self):
+        '''keep looping infinitely until the thread is stopped'''
+        for f in self.stream:
+            # grab the frame from the stream and clear the stream in
+            # preparation for the next frame
+            self.frame = f.array
+            self.raw_capture.truncate(0)
 
+            # if the thread indicator variable is set, stop the thread
+            # and resource camera resources
+            if self.stopped:
+                self.stream.close()
+                self.raw_capture.close()
+                self.camera.close()
+                return
 
-if __name__ == "__main__":
-    camera = Camera()
-    start_time = time.time()
-    fps = FPS().start()
-    while fps._numFrames < 200:
-        # while True:
-        FRAME = camera.get_frame()
-        # print("Positive line:", positive_line)
-        # print("Negative line:", negative_line)
-        print("Frame took ", time.time() - start_time)
-        start_time = time.time()
+    def read(self):
+        '''return the frame most recently read'''
+        return self.frame
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-        fps.update()
-    fps.stop()
-    print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
-    print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
-    camera.close()
+    def stop(self):
+        '''indicate that the thread should be stopped'''
+        self.stopped = True

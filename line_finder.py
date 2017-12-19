@@ -1,10 +1,10 @@
 import math
 from statistics import mean, StatisticsError
 import time
-import cv2
-import numpy as np
 from multiprocessing.pool import ThreadPool
 from utils import display_image
+import cv2
+import numpy as np
 
 class LineFinder:
     '''Class to find the road lines in a image'''
@@ -151,7 +151,7 @@ class LineFinder:
         # Calculate edges
         processed_frame = cv2.Canny(processed_frame, 180, 200, apertureSize=3)
 
-        display_image(processed_frame, "canny")
+        # display_image(processed_frame, "canny")
 
         # Blur image to smooth it
         processed_frame = cv2.GaussianBlur(processed_frame, (3, 3), 0)
