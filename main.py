@@ -1,12 +1,12 @@
 import time
 from enum import Enum
+from multiprocessing.pool import ThreadPool
 from ultrasonic_sensor import UltrasonicSensor
 from motor_controller import MotorController as Motor
 from camera import Camera
 from line_finder import LineFinder
 from signal_finder import SignalFinder
 from utils import display_image, draw_line
-from multiprocessing.pool import ThreadPool
 import cv2
 import RPi.GPIO as GPIO
 
@@ -30,8 +30,8 @@ class MainController:
 
     GPIO_MODE = GPIO.BCM
 
-    CAMERA_WIDTH = 320
-    CAMERA_HEIGHT = 240
+    CAMERA_WIDTH = 640
+    CAMERA_HEIGHT = 480
 
     DISPLAY_IMAGE = True
 
@@ -39,18 +39,19 @@ class MainController:
         # Setup the needed components
         self.state = None
         self.motor = Motor(MainController.GPIO_MODE)
-        self.motor_stop(0)
         self.sensor = UltrasonicSensor(MainController.GPIO_MODE).start()
         self.camera = Camera(width=MainController.CAMERA_WIDTH,
                              height=MainController.CAMERA_HEIGHT,
-                             vflip=True).start()
+                             vflip=False).start()
         self.line_finder = LineFinder()
-        self.signal_finder = SignalFinder()
+        self.signal_finder = SignalFinder('classifiers/cascade_6000_20stages.xml')
         self.pool = ThreadPool(processes=2)
         print("Setup finished")
 
     def exit(self):
         '''Exit main closing all'''
+        # Close pool
+        self.pool.close()
         self.motor.exit()
         self.camera.stop()
         self.sensor.stop()
@@ -168,51 +169,49 @@ class MainController:
                     self.motor_stop(0)
                 else:
                     frame = self.camera.read()
+                    if frame is not None:
+                        get_signals_async = self.pool.apply_async(self.signal_finder.detect_signals,
+                                                                  args=(frame.copy(),))
+                        get_lines_async = self.pool.apply_async(self.line_finder.get_lines,
+                                                                args=(frame.copy(),))
 
-                    get_signals_async = self.pool.apply_async(self.signal_finder.get_signals,
-                                                              args=(frame,))
-                    get_lines_async = self.pool.apply_async(self.line_finder.get_lines,
-                                                            args=(frame,))
+                        signals = get_signals_async.get(0.7)
+                        left_line, right_line = get_lines_async.get(0.7)
 
-                    signals = get_signals_async.get(0.3)
-                    positive_line, negative_line = get_lines_async.get(0.3)
+                        print(signals)
+                        draw_line(frame, left_line)
+                        draw_line(frame, right_line)
+                        display_image(frame)
 
-                    # self.signal_finder.get_signals(frame)
-                    # positive_line, negative_line = self.line_finder.get_lines(frame)
+                        self.control_trajectory(left_line, right_line)
 
-                    draw_line(frame, positive_line)
-                    draw_line(frame, negative_line)
-                    display_image(frame)
-
-                    print(signals)
-
-                    positive_slope = positive_line["slope"]
-                    negative_slope = negative_line["slope"]
-                    # Two lines found
-                    if positive_slope is not None and negative_slope is not None:
-                        #self.motor_forward(0)
-                        self.maintain_middle(positive_line, negative_line)
-                    # Right line found
-                    elif positive_slope is None and negative_slope is not None:
-                        self.motor_forward_left(
-                            MainController.CONTROLLER_SLEEP_TIME)
-                    # Left line found
-                    elif positive_slope is not None and negative_slope is None:
-                        self.motor_forward_right(
-                            MainController.CONTROLLER_SLEEP_TIME)
-                    # No lines found
-                    else:
-                        self.motor_stop(0)
-
-                    if self.DISPLAY_IMAGE:
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
-                            break
-                print("Frame took ", time.time() - start_time)
+                        if self.DISPLAY_IMAGE:
+                            if cv2.waitKey(1) & 0xFF == ord('q'):
+                                break
+                time_elapsed = time.time() - start_time
+                print("Frame took ", time_elapsed, "FPS:", 1/time_elapsed)
                 start_time = time.time()
         except KeyboardInterrupt:
+            pass
+        finally:
             self.motor_stop(0)
             self.choose_mode()
 
+    def control_trajectory(self, left_line, right_line):
+        '''Control de trajectory based on the lines of the road'''
+        # Two lines found
+        if left_line is not None and right_line is not None:
+            #self.motor_forward(0)
+            self.maintain_middle(left_line, right_line)
+        # Right line found
+        elif left_line is None and right_line is not None:
+            self.motor_forward_left(MainController.CONTROLLER_SLEEP_TIME)
+        # Left line found
+        elif left_line is not None and right_line is None:
+            self.motor_forward_right(MainController.CONTROLLER_SLEEP_TIME)
+        # No lines found
+        else:
+            self.motor_stop(0)
 
     def maintain_middle(self, positive_line, negative_line):
         '''Maintain the car in the middle of the road'''
@@ -232,13 +231,17 @@ def main():
 
 
 if __name__ == "__main__":
-    camera = Camera(width=320, height=240, vflip=True)
-    camera.start()
-    time.sleep(0.5)
-    while True:
-        frame = camera.read()
-        SignalFinder().get_signals(frame)
+    # camera = Camera(width=640, height=480, vflip=False, hflip=False)
+    # camera.start()
+    # time.sleep(0.5)
+    # signal_finder = SignalFinder('classifiers/cascade_6000_25stages.xml')
+    # while True:
+    #     frame = camera.read()
+    #     signal_finder.detect_signals(frame)
+    #     # signal_ finder.substract_bg(frame)
+    #     display_image(frame, name="main")
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    # main()
+    #     if cv2.waitKey(1) & 0xFF == ord('q'):
+    #         break
+    # camera.stop()
+    main()

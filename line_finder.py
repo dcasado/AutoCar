@@ -31,7 +31,7 @@ class LineFinder:
             mean_x2 = mean(temp_x2l)
             mean_y2 = mean(temp_y2l)
         except (IndexError, StatisticsError):
-            return {"slope": None, "points": []}
+            return None
         else:
             slope = math.atan2((mean_y2 - mean_y1), (mean_x2 - mean_x1))
             return {"slope": slope,
@@ -51,7 +51,7 @@ class LineFinder:
                     best_x2 = temp_x2
                     best_y2 = temp_y2
         except IndexError:
-            return {"slope": None, "points": []}
+            return None
         else:
             # print(best_x1, best_y1, best_x2, best_y2)
             if best_x1 is None or best_y1 is None or best_x2 is None or best_y2 is None:
@@ -130,7 +130,7 @@ class LineFinder:
             negative_line = negative_line_async.get(0.3)
 
             return positive_line, negative_line
-        return {"slope": None, "points": []}, {"slope": None, "points": []}
+        return None, None
 
     def get_lines(self, frame):
         '''Process the frame to get the road lanes'''
@@ -140,13 +140,13 @@ class LineFinder:
         roi_vertices = self.create_roi_vertices(len(processed_frame[0]), len(processed_frame))
         processed_frame = self.roi(processed_frame, roi_vertices)
 
+        display_image(processed_frame, name="roi")
         # NOT NECESARY BECAUSE CANNY DOES IT FOR US Change image color to gray
         # Necesary because we do the threshold before
         processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
 
         ret, processed_frame = cv2.threshold(processed_frame, 130, 255, cv2.THRESH_BINARY)
         processed_frame = cv2.bitwise_not(processed_frame)
-        # self.display_image(processed_frame, name="threshold")
 
         # Calculate edges
         processed_frame = cv2.Canny(processed_frame, 180, 200, apertureSize=3)
@@ -177,9 +177,9 @@ class LineFinder:
 
     def create_roi_vertices(self, width, height):
         '''Create ROI vertices with the image dimensions'''
-        return np.array([[0, height],
-                         [0, int(height * 0.68)],
-                         [int(width * 0.25), int(height * 0.55)],
-                         [int(width * 0.75), int(height * 0.55)],
-                         [width, int(height * 0.68)],
-                         [width, height]])
+        return np.array([[int(width * 0.05), height],
+                         [int(width * 0.05), int(height * 0.75)],
+                         [int(width * 0.25), int(height * 0.50)],
+                         [int(width * 0.75), int(height * 0.50)],
+                         [int(width * 0.95), int(height * 0.75)],
+                         [int(width * 0.95), height]])
